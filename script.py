@@ -236,7 +236,6 @@ def customInstructions(string, backGroundGenerationHistory, previousBotReply, us
             break
     if (returnCode is None) and not (nextInstruction == -1):
         print('\nReturn Code', retValue, 'Not Defined: May cause unexpected behavior\n')
-    print('\nReturn Code:', returnCode, "\n")
 
     return retString
     
@@ -355,7 +354,7 @@ def ui():
     To learn about gradio components, check out the docs:
     https://gradio.app/docs/
     """
-    global dropdown_menu, ui_container, preset_name_textbox
+    global preset_dropdown, ui_container, preset_name_textbox
 
     with gr.Accordion("Cognition Flow", open=True, elem_id='cognition_flow'):
         enabled_checkbox = gr.Checkbox(value=enabled, label='Enabled')
@@ -363,28 +362,46 @@ def ui():
             lambda x: toggle_enabled(x), enabled_checkbox, None)
         preset_choices = list_flow_presets()
         default_choice = preset_choices[0] if preset_choices else None
-        dropdown_menu = gr.Dropdown(
-            choices=preset_choices, label='Flow Preset', value=default_choice)
-        dropdown_menu.change(lambda x: load_preset(x), dropdown_menu, None)
-
+        preset_dropdown = gr.Dropdown(
+            choices=preset_choices, label='Flow Preset', allow_custom_value=True)
+        
+        
+        refresh_presets = gr.Button("Refresh")
+        refresh_presets.click(refresh_ui, outputs=[preset_dropdown])
+        preset_dropdown.update(default_choice)
         preset_name_textbox = gr.Textbox(label="Preset Name", visible=False)
         ui_container = gr.Column()
+        new_preset_name_textbox = gr.Textbox(label="New Preset Filename")
+        create_preset_button = gr.Button("Create New Preset")
+        create_preset_button.click(create_new_preset, inputs=[new_preset_name_textbox], outputs=[preset_dropdown, preset_dropdown, new_preset_name_textbox])
+        with gr.Accordion("Preset Editor", open=False, elem_id='preset_editor'):
+            preset_function_dropdown = gr.Dropdown(
+                choices=['Please Select a Preset'], label='Preset Function', interactive=True)  
+    
+    
+        preset_dropdown.change(lambda x: load_preset(x), preset_dropdown, outputs=[preset_function_dropdown, preset_function_dropdown])
+    
     load_preset(default_choice)
 
 
 def load_preset(selected_preset):
-    global presetPath
-    global nextInstruction
-    global historyModifier
-    historyModifier = 0
-    nextInstruction = 0
-    presetPath = f"extensions/cognition_flow/flow_presets/{selected_preset}"
-    
-
-    with open(presetPath, 'r') as f:
-        data = json.load(f)
-        print("Loaded preset name: ", data.get('preset_name', ''))
-    # update_ui_with_json(data)
+    if selected_preset is not None:
+        global presetPath
+        global nextInstruction
+        global historyModifier
+        historyModifier = 0
+        nextInstruction = 0
+        presetPath = f"extensions/cognition_flow/flow_presets/{selected_preset}"
+        
+        
+        with open(presetPath, 'r') as f:
+            data = json.load(f)
+            print("Loaded preset name: ", data.get('preset_name', ''))
+        # update_ui_with_json(data)
+        updated_preset_functions = list_preset_functions()
+        return gr.Dropdown.update(choices=updated_preset_functions), gr.Dropdown.update(value=None)
+    else:
+        print("No preset selected")
 
 
 
@@ -394,15 +411,66 @@ def list_flow_presets():
     preset_path = "extensions/cognition_flow/flow_presets"
     return [f for f in os.listdir(preset_path) if f.endswith('.json')]
 
-
-def update_preset():
-    selected_preset = dropdown_menu.get_value()
-    preset_path = f"extensions/cognition_flow/flow_presets/{selected_preset}"
-    with open(preset_path, 'r+') as f:
+def list_preset_functions():
+    with open(presetPath, 'r') as f:
         data = json.load(f)
-        f.seek(0)
-        json.dump(data, f)
-        f.truncate()
+    
+    return [(str(func['identifier']) + ': ' + func['name']) for func in data['flow_functions']]
+
+def list_flow_functions():
+    preset_path = "extensions/cognition_flow/flow_functions"
+    return [f for f in os.listdir(preset_path) if f.endswith('.py')]
+
+def create_new_preset(new_preset_name):
+    # Logic to create a new JSON file for the preset with the given name
+    new_preset_path = f"extensions/cognition_flow/flow_presets/{new_preset_name}.json"
+    
+    # Check if the file already exists to avoid overwriting
+    if os.path.exists(new_preset_path):
+        # Handle the case where the file already exists, possibly by returning an error message or asking for a different name
+        return "Preset name already exists. Choose a different name."
+    scriptPlaceholder = list_flow_functions()
+    
+    if not scriptPlaceholder:
+        return "No flow functions found. Add a script to the flow_functions directory first."
+    # Default structure for a new preset JSON file
+    new_preset_data = {
+        "preset_name": new_preset_name,
+        "max_gen_num": 5,
+        "max_loop_num": 5,
+        "flow_functions": [{
+            "name": "Begin",
+            "identifier": 0,
+            "script_path": f"extensions/cognition_flow/flow_functions/{scriptPlaceholder[0]}",
+            "return_codes": [{
+                "code": 1,
+                "mapped_to_instruction": 1,
+                "willGenerate": True,
+                "saveInputToHistory": True,
+                "saveResponseToHistory": True,
+                "useContext": True
+            }]
+        }]
+    }
+    
+    # Write the new preset data to a JSON file
+    with open(new_preset_path, 'w') as f:
+        json.dump(new_preset_data, f)
+    global preset_dropdown
+    # Update the preset dropdown choices
+    preset_choices = list_flow_presets()
+    
+    # Set the dropdown to the newly created preset
+    preset_dropdown_value = f"{new_preset_name}.json"
+    refresh_ui()
+    return gr.Dropdown.update(choices=preset_choices), preset_dropdown_value, ""  # Return the new preset name to update the dropdown in the UI
+
+def refresh_ui():
+    global preset_dropdown
+    preset_choices = list_flow_presets()
+    preset_dropdown.update(choices=preset_choices)
+    return gr.Dropdown.update(choices=preset_choices)
+    
 
 
 
