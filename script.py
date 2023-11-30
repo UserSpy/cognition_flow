@@ -362,11 +362,9 @@ def ui():
             lambda x: toggle_enabled(x), enabled_checkbox, None)
         preset_choices = list_flow_presets()
         default_choice = preset_choices[0] if preset_choices else None
-        preset_dropdown = gr.Dropdown(
-            choices=preset_choices, label='Flow Preset', allow_custom_value=True)
-        
-        
-        refresh_presets = gr.Button("Refresh")
+        with gr.Column():
+            preset_dropdown = gr.Dropdown(choices=preset_choices, label='Flow Preset', allow_custom_value=True)
+            refresh_presets = gr.Button("Refresh")
         refresh_presets.click(refresh_ui, outputs=[preset_dropdown])
         preset_dropdown.update(default_choice)
         preset_name_textbox = gr.Textbox(label="Preset Name", visible=False)
@@ -375,14 +373,161 @@ def ui():
         create_preset_button = gr.Button("Create New Preset")
         create_preset_button.click(create_new_preset, inputs=[new_preset_name_textbox], outputs=[preset_dropdown, preset_dropdown, new_preset_name_textbox])
         with gr.Accordion("Preset Editor", open=False, elem_id='preset_editor'):
-            preset_function_dropdown = gr.Dropdown(
-                choices=['Please Select a Preset'], label='Preset Function', interactive=True)  
+            maxGen = gr.Number(label="Maximum Generations", interactive=True)
+            maxLoop = gr.Number(label="Maximum Non-Generation Loops", interactive=True)
+            with gr.Row():
+                with gr.Column():
+                    preset_function_dropdown = gr.Dropdown(
+                        choices=['Please Select a Preset'], label='Preset Function', interactive=True, allow_custom_value=True)  
+                    with gr.Row():
+                        save_function_button = gr.Button("Save Function")
+                        new_function_button = gr.Button("Create New Function")
+                    functionName = gr.Textbox(label="Function Name", interactive=True)
+                    funcIdentifier = gr.Number(label="Identifier (0 is called first, -1 optionally called last)", interactive=True)
+                
+                    flowfunctionDropdown = gr.Dropdown(choices=list_flow_functions(), label='Script', interactive=True, allow_custom_value=True)
+
+                    refresh_functions = gr.Button("Refresh")
+                refresh_functions.click(refreshFunctions, outputs=[flowfunctionDropdown])
+                with gr.Column():
+                    function_return_dropdown = gr.Dropdown(choices=['Please Select Preset Function'], label='Return Code', interactive=True, allow_custom_value=True)
+                    with gr.Row():
+                        save_return_button = gr.Button("Save Return Code")
+                        new_return_button = gr.Button("Create New Return Code")
+                    codeInput = gr.Textbox(label="Code", interactive=True)
+                    instructionMappedTo = gr.Number(label="Mapped to Function Identifier (-1 for final behavior):", interactive=True)
+                    generateCheckbox = gr.Checkbox(label='Generate Text using Function Output', interactive=True)
+                    saveInputCheckbox = gr.Checkbox(label='Save Function Output as the Temporary History', interactive=True)
+                    saveResponseCheckbox = gr.Checkbox(label='Append Text Generated after Function to the Temporary History', interactive=True)
+                    useContextCheckbox = gr.Checkbox(label='Use the webui\'s history and character context', interactive=True)
+            
     
     
-        preset_dropdown.change(lambda x: load_preset(x), preset_dropdown, outputs=[preset_function_dropdown, preset_function_dropdown])
-    
+        preset_dropdown.change(lambda x: load_preset(x), preset_dropdown, outputs=[preset_function_dropdown, preset_function_dropdown, maxGen, maxLoop])
+        preset_function_dropdown.change(lambda x: update_function_information(x), preset_function_dropdown, outputs=[functionName, funcIdentifier, flowfunctionDropdown, function_return_dropdown, function_return_dropdown])
+        function_return_dropdown.change(lambda x, y: update_return_information(x, y), inputs=[preset_function_dropdown, function_return_dropdown], outputs=[codeInput, instructionMappedTo, generateCheckbox, saveInputCheckbox, saveResponseCheckbox, useContextCheckbox])
+        save_function_button.click(lambda x, y, z, a: functionChange(x, y, z, a), inputs = [preset_function_dropdown, functionName, funcIdentifier, flowfunctionDropdown], outputs=[preset_function_dropdown, preset_function_dropdown])
+        new_function_button.click(lambda y, z, a: functionNew(y, z, a), inputs =[functionName, funcIdentifier, flowfunctionDropdown], outputs=[preset_function_dropdown, preset_function_dropdown])
+        save_return_button.click(lambda a, b, c, d, e, f, g, h: returnChange(a, b, c, d, e, f, g, h), inputs=[preset_function_dropdown, function_return_dropdown, codeInput, instructionMappedTo, generateCheckbox, saveInputCheckbox, saveResponseCheckbox, useContextCheckbox], outputs=[function_return_dropdown, function_return_dropdown])
+        new_return_button.click(
+    lambda a, b, c, d, e, f, g: returnNew(a, b, c, d, e, f, g), 
+    inputs=[preset_function_dropdown, codeInput, instructionMappedTo, generateCheckbox, saveInputCheckbox, saveResponseCheckbox, useContextCheckbox],
+    outputs=[function_return_dropdown, function_return_dropdown]
+)
+        
     load_preset(default_choice)
 
+
+def returnChange(currentFunction, oldCode, newCode, mapped_to_instruction, willGenerate, saveInputToHistory, saveResponseToHistory, useContext):
+    if oldCode is None:
+        return None, None
+    with open(presetPath, 'r') as file:
+        data = json.load(file)
+    identifier = currentFunction.split(': ')[0]
+    for func in data['flow_functions']:
+        if str(func['identifier']) == identifier:
+        
+            for code in func['return_codes']:
+                if code['code'] == oldCode:
+                    code['code'] = int(newCode)
+                    code["mapped_to_instruction"] = mapped_to_instruction
+                    code["willGenerate"] = willGenerate
+                    code["saveInputToHistory"] = saveInputToHistory
+                    code["saveResponseToHistory"] = saveResponseToHistory
+                    code ["useContext"] = useContext
+                    
+            return_codes = [code['code'] for code in func['return_codes']]
+    
+    with open(presetPath, 'w') as file:
+        json.dump(data, file, indent=4)
+        
+    return_codes.insert(0, "Please Select This First")
+    return gr.Dropdown.update(choices=return_codes), return_codes[0]
+
+def returnNew(currentFunction, newCode, mapped_to_instruction, willGenerate, saveInputToHistory, saveResponseToHistory, useContext):
+    # Load JSON data
+    with open(presetPath, 'r') as file:
+        data = json.load(file)
+
+    identifier = currentFunction.split(': ')[0]
+    
+     # Convert None values from checkboxes to False
+    willGenerate = False if willGenerate is None else willGenerate
+    saveInputToHistory = False if saveInputToHistory is None else saveInputToHistory
+    saveResponseToHistory = False if saveResponseToHistory is None else saveResponseToHistory
+    useContext = False if useContext is None else useContext
+
+    # Find the function and append the new return code
+    for func in data['flow_functions']:
+        if str(func['identifier']) == identifier.strip():
+            new_return_code = {
+                "code": int(newCode),
+                "mapped_to_instruction": mapped_to_instruction,
+                "willGenerate": willGenerate,
+                "saveInputToHistory": saveInputToHistory,
+                "saveResponseToHistory": saveResponseToHistory,
+                "useContext": useContext
+            }
+            func['return_codes'].append(new_return_code)
+            break
+
+    # Save the updated data back to JSON file
+    with open(presetPath, 'w') as file:
+        json.dump(data, file, indent=4)
+
+    return_codes = [code['code'] for func in data['flow_functions'] if str(func['identifier']) == identifier.strip() for code in func['return_codes']]
+    return_codes.insert(0, "Please Select This First")
+    return gr.Dropdown.update(choices=return_codes), return_codes[0]
+
+def functionChange(currentFunction, name, newIdentifier, script):
+    if currentFunction is not None:
+        oldIdentifier, oldName = currentFunction.split(': ')
+    else:
+        return None, None
+    
+    with open(presetPath, 'r') as file:
+        data = json.load(file)
+
+    for function in data["flow_functions"]:
+            if str(function["identifier"]) == oldIdentifier.strip():
+                function["name"] = name
+                function["identifier"] = newIdentifier
+                function["script_path"] = "extensions/cognition_flow/flow_functions/" + script
+                break
+    
+    with open(presetPath, 'w') as file:
+        json.dump(data, file, indent=4)
+    choices = list_preset_functions()
+    choices.insert(0, "Please Select This First")
+    return gr.Dropdown.update(choices=choices), str(newIdentifier) + ': ' + name
+
+
+def functionNew(name, newIdentifier, script):
+   
+    with open(presetPath, 'r') as file:
+        data = json.load(file)
+
+    if name is None or newIdentifier is None:
+        return None, None
+    
+    # Create new function entry
+    new_function = {
+        "name": name,
+        "identifier": newIdentifier,
+        "script_path": "extensions/cognition_flow/flow_functions/" + script,
+        "return_codes": []  # Assuming empty return codes initially
+    }
+
+    # Append the new function to the list
+    data["flow_functions"].append(new_function)
+
+    # Save the updated data back to JSON file
+    with open(presetPath, 'w') as file:
+        json.dump(data, file, indent=4)
+    
+    choices = list_preset_functions()
+    choices.insert(0, "Please Select This First")
+    return gr.Dropdown.update(choices=choices), str(newIdentifier) + ': ' + name
 
 def load_preset(selected_preset):
     if selected_preset is not None:
@@ -392,20 +537,65 @@ def load_preset(selected_preset):
         historyModifier = 0
         nextInstruction = 0
         presetPath = f"extensions/cognition_flow/flow_presets/{selected_preset}"
-        
+        maxGen = 5
+        maxLoop = 5
         
         with open(presetPath, 'r') as f:
             data = json.load(f)
             print("Loaded preset name: ", data.get('preset_name', ''))
+            maxGen = data.get('max_gen_num', 5)
+            maxLoop = data.get('max_loop_num', 5)
         # update_ui_with_json(data)
         updated_preset_functions = list_preset_functions()
-        return gr.Dropdown.update(choices=updated_preset_functions), gr.Dropdown.update(value=None)
+        updated_preset_functions.insert(0, "Please Select This First")
+        return gr.Dropdown.update(choices=updated_preset_functions), gr.Dropdown.update(value=updated_preset_functions[0]), maxGen, maxLoop
     else:
         print("No preset selected")
 
 
+def update_function_information(selected_function):
+    with open(presetPath, 'r') as f:
+        data = json.load(f)
+        if selected_function is None:
+            # Handle the None case, maybe return some default values or error message
+            return None, None, None, None, None
+        identifier = selected_function.split(': ')[0]
 
+    # Find the matching function in the data
+    for func in data['flow_functions']:
+        if str(func['identifier']) == identifier:
+            function_name = func['name']
+            function_identifier = func['identifier']
+            script_file_name = func['script_path'].split('/')[-1]  # Extracts file name from path
+            return_codes = [code['code'] for code in func['return_codes']]  # Extracts all return codes
+            return_codes.insert(0, "Please Select This First")
+            return function_name, function_identifier, gr.Dropdown.update(script_file_name), gr.Dropdown.update(choices=return_codes), gr.Dropdown.update(value=return_codes[0])
+        
+    return None, None, None, None, None
 
+def update_return_information(preset_function, selected_return):
+    with open(presetPath, 'r') as f:
+        data = json.load(f)
+        if selected_return is None:
+            # Handle the None case, maybe return some default values or error message
+            return None, None, None, None, None, None
+        identifier = preset_function.split(': ')[0]
+    for func in data['flow_functions']:
+        if str(func['identifier']) == identifier:
+            for code in func['return_codes']:
+                if code['code'] == selected_return:
+                    # Extract all needed values from the return code
+                    mapped_to_instruction = code.get('mapped_to_instruction', None)
+                    willGenerate = code.get('willGenerate', None)
+                    saveInputToHistory = code.get('saveInputToHistory', None)
+                    saveResponseToHistory = code.get('saveResponseToHistory', None)
+                    useContext = code.get('useContext', None)
+
+                    return code['code'], mapped_to_instruction, willGenerate, saveInputToHistory, saveResponseToHistory, useContext
+
+    # If no matching function or return code is found
+    return None, None, None, None, None, None
+        
 
 def list_flow_presets():
     preset_path = "extensions/cognition_flow/flow_presets"
@@ -470,8 +660,9 @@ def refresh_ui():
     preset_choices = list_flow_presets()
     preset_dropdown.update(choices=preset_choices)
     return gr.Dropdown.update(choices=preset_choices)
-    
 
+def refreshFunctions():
+    return gr.Dropdown.update(choices=list_flow_functions())
 
 
 
