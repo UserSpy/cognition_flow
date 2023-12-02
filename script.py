@@ -115,6 +115,10 @@ def input_modifier(string, state, is_chat=False):
         global historyModifier
         global userReply
         global previousBotReply
+        global backgroundGenerationHistory
+        global thoughtInput
+        thoughtInput = ''
+        backgroundGenerationHistory = ''
         lastGeneratedResponse = ''
         genNumber = 0
         historyModifier = 0
@@ -140,7 +144,7 @@ def thinking_loop(string, state): #these next functions are custom functions tha
 
     
     
-    if (saveResponseToHistory):
+    if (saveResponseToHistory and not state['new_generation']):
         backgroundGenerationHistory = backgroundGenerationHistory + ' ' + string
     
     loopNumber = 0
@@ -297,15 +301,18 @@ def output_modifier(string, state, is_chat=False):
     if (not enabled):
         return string
     global previousBotReply
-    
+    global outputModified
+    global nextInstruction
     if ((genNumber == 0) or (nextInstruction == -1)):
         print("\n-----------------------------------------------------\n")
         
 
         if (nextInstruction == -1):
             temp = customInstructions(string, backgroundGenerationHistory, previousBotReply, userReply, state)
+            nextInstruction = 0
             if (outputModified):
                 string = temp
+                outputModified = False
             
         return string
     
@@ -402,7 +409,8 @@ def ui():
                     useContextCheckbox = gr.Checkbox(label='Use the webui\'s history and character context', interactive=True)
             
     
-    
+        maxGen.change(lambda x: change_maxGen(x), maxGen)
+        maxLoop.change(lambda x: change_maxLoop(x), maxLoop)
         preset_dropdown.change(lambda x: load_preset(x), preset_dropdown, outputs=[preset_function_dropdown, preset_function_dropdown, maxGen, maxLoop])
         preset_function_dropdown.change(lambda x: update_function_information(x), preset_function_dropdown, outputs=[functionName, funcIdentifier, flowfunctionDropdown, function_return_dropdown, function_return_dropdown])
         function_return_dropdown.change(lambda x, y: update_return_information(x, y), inputs=[preset_function_dropdown, function_return_dropdown], outputs=[codeInput, instructionMappedTo, generateCheckbox, saveInputCheckbox, saveResponseCheckbox, useContextCheckbox])
@@ -417,6 +425,29 @@ def ui():
         
     load_preset(default_choice)
 
+def change_maxGen(new_max_gen):
+    # Load the JSON data
+    with open(presetPath, 'r') as file:
+        data = json.load(file)
+
+    # Update the max_gen_num value
+    data['max_gen_num'] = int(new_max_gen)
+
+    # Save the updated data back to JSON file
+    with open(presetPath, 'w') as file:
+        json.dump(data, file, indent=4)
+
+def change_maxLoop(new_max_loop):
+    # Load the JSON data
+    with open(presetPath, 'r') as file:
+        data = json.load(file)
+
+    # Update the max_loop_num value
+    data['max_loop_num'] = int(new_max_loop)
+
+    # Save the updated data back to JSON file
+    with open(presetPath, 'w') as file:
+        json.dump(data, file, indent=4)
 
 def returnChange(currentFunction, oldCode, newCode, mapped_to_instruction, willGenerate, saveInputToHistory, saveResponseToHistory, useContext):
     if oldCode is None:
