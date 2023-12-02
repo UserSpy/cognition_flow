@@ -2,44 +2,51 @@
     "preset_name": "Analyze",
     "max_gen_num": 5,
     "max_loop_num": 5,
-    "flow_functions": [{
+    "flow_functions": [
+        {
             "name": "innerThoughtStarter",
             "identifier": 0,
             "script_path": "extensions/cognition_flow/flow_functions/innerThoughtStarter.py",
-            "return_codes": [{
-                "code": 1,
-                "mapped_to_instruction": 1,
-                "willGenerate": false,
-                "saveInputToHistory": true,
-                "saveResponseToHistory": true,
-                "useContext": false
-            }]
+            "return_codes": [
+                {
+                    "code": 1,
+                    "mapped_to_instruction": 1,
+                    "willGenerate": false,
+                    "saveInputToHistory": true,
+                    "saveResponseToHistory": true,
+                    "useContext": false
+                }
+            ]
         },
         {
             "name": "Analyze Self begin",
             "identifier": 1,
             "script_path": "extensions/cognition_flow/flow_functions/analyzeSelfBegin.py",
-            "return_codes": [{
-                "code": 1,
-                "mapped_to_instruction": 2,
-                "willGenerate": true,
-                "saveInputToHistory": false,
-                "saveResponseToHistory": true,
-                "useContext": true
-            }]
+            "return_codes": [
+                {
+                    "code": 1,
+                    "mapped_to_instruction": 2,
+                    "willGenerate": true,
+                    "saveInputToHistory": false,
+                    "saveResponseToHistory": true,
+                    "useContext": true
+                }
+            ]
         },
         {
             "name": "Response Behavior",
             "identifier": 2,
             "script_path": "extensions/cognition_flow/flow_functions/responseBehavior.py",
-            "return_codes": [{
-                "code": 1,
-                "mapped_to_instruction": -1,
-                "willGenerate": true,
-                "saveInputToHistory": true,
-                "saveResponseToHistory": true,
-                "useContext": true
-            }]
+            "return_codes": [
+                {
+                    "code": 1,
+                    "mapped_to_instruction": -1,
+                    "willGenerate": true,
+                    "saveInputToHistory": true,
+                    "saveResponseToHistory": true,
+                    "useContext": true
+                }
+            ]
         }
     ]
 }

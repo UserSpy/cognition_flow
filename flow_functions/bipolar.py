@@ -1,7 +1,7 @@
 import random
 
 def main(inputString, tempHistory, previousBotReply, userReply, state):
-    print("\nUsing bipolar") 
+
     if (random.randint(0, 1)):
         response = "in an extremely excited way"
     else:

@@ -1,3 +1,3 @@
 def main(inputString, tempHistory, previousBotReply, userReply, state):
-
-    return (userReply), 1
+    
+    return inputString, 1
