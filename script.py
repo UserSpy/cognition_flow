@@ -81,7 +81,7 @@ def state_modifier(state):
     Modifies the state variable, which is a dictionary containing the input
     values in the UI like sliders and checkboxes.
     """
-    if 'new_generation' not in state:
+    if 'new_generation' not in state: #used to control flow in other parts of the script
         # Add a new key 'new_generation' and set it to True
         state['new_generation'] = True
         state['stream'] = False
@@ -109,7 +109,7 @@ def input_modifier(string, state, is_chat=False):
     if (not enabled):
         return string
     if (state['new_generation']):
-        global lastGeneratedResponse
+        global lastGeneratedResponse #setting initial values for global variables
         global genNumber
         global nextInstruction
         global historyModifier
@@ -132,7 +132,7 @@ def input_modifier(string, state, is_chat=False):
 
 def thinking_loop(string, state): #these next functions are custom functions that are not called in order
     """
-    Loops text generation onto itself
+    Loops text generation onto itself and modifies global variables based on loaded functions
     """
 
     global lastGeneratedResponse
@@ -171,7 +171,7 @@ def thinking_loop(string, state): #these next functions are custom functions tha
     thinking_loop(lastGeneratedResponse, state)
 
 
-def customInstructions(string, backGroundGenerationHistory, previousBotReply, userReply, state):
+def customInstructions(string, backGroundGenerationHistory, previousBotReply, userReply, state): #loads a JSON configuration and executes a script based on the current state and input
     global historyModifier
     global nextInstruction
     global finalGen
@@ -244,6 +244,7 @@ def customInstructions(string, backGroundGenerationHistory, previousBotReply, us
     return retString
     
 def generate(input, state):
+    #Handles the text generation process. It uses the provided state and input to generate a response, taking into account whether to use context or not.
     global genNumber
     retString = None
     if (useContext):
